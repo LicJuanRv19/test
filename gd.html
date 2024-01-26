@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grabar Pantalla</title>
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.6.8/plyr.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    
+             <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            text-align: center;
+        }
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        button {
+            margin-top: 10px;
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #quiz-container {
+            text-align: left;
+        }
+        #result {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+    
+</head>
+<body>
+
+
+    <div class="container mt-5">
+        <button id="startRecording" class="btn btn-primary">Comenzar Evaluacion</button>
+        <button id="stopRecording" class="btn btn-danger" disabled>Terminar Evaluacion (10:00)</button>
+
+        <div class="container" id="questionsContainer" style="display: none;">
+            <h2 class="mt-4 mb-4">Test de Preguntas</h2>
+            <div id="quiz-container" class="list-group"></div>
+            <button id="submit" class="btn btn-success mt-3">Enviar Respuestas</button>
+            <div id="result" class="mt-3"></div>
+        </div>
+
+        <div id="videoContainer" class="mt-4" style="display: none;">
+            <div class="row">
+                <div class="col-md-6">
+                    <video id="recordedVideo" class="plyr" controls></video>
+                    <div id="scoreContainer" style="margin-top: 10px;"></div>
+                </div>
+                <div class="col-md-6">
+                    <video id="cameraPreview" class="plyr" controls muted></video>
+                </div>
+            </div>
+        </div>
+
+        <button id="saveLocally" class="btn btn-success mt-4" style="display: none;">Guardar Evaluacion</button>
+        <a id="downloadLink" href="#" download="grabacion.webm" style="display: none;">Descargar Video</a>
+    </div>
+
+    <script src="https://cdn.plyr.io/3.6.8/plyr.polyfilled.js"></script>
+    <script>
+        const questions = [
+            {
+                question: "¿Cuál es la capital de Francia?",
+                options: [" Roma", " París", "Berlín", "Londres"],
+                correctAnswer: "París"
+            },
+            {
+                question: "¿En qué año comenzó la Segunda Guerra Mundial?",
+                options: ["1939", "1941", "1945", "1936"],
+                correctAnswer: "1939"
+            },
+            {
+                question: "¿Cuál es el río más largo del mundo?",
+                options: ["Amazonas", "Nilo", "Yangtsé", "Misisipi"],
+                correctAnswer: "Amazonas"
+            },
+            {
+                question: "¿Quién escribió 'Cien años de soledad'?",
+                options: ["Julio Cortázar", "Gabriel García Márquez", "Isabel Allende", "Pablo Neruda"],
+                correctAnswer: "Gabriel García Márquez"
+            },
+            {
+                question: "¿Cuál es el símbolo químico del oro?",
+                options: ["Ag", "Au", "Fe", "Cu"],
+                correctAnswer: "Au"
+            },
+            {
+                question: "¿En qué año se fundó Google?",
+                options: ["1995", "2001", "1998", "2005"],
+                correctAnswer: "1998"
+            },
+            {
+                question: "¿Quién pintó La última cena?",
+                options: ["Vincent van Gogh", "Leonardo da Vinci", "Pablo Picasso", "Claude Monet"],
+                correctAnswer: "Leonardo da Vinci"
+            },
+            {
+                question: "¿Cuál es el planeta más grande del sistema solar?",
+                options: ["Tierra", "Venus", "Júpiter", "Saturno"],
+                correctAnswer: "Júpiter"
+            },
+            {
+                question: "¿En qué año se llevó a cabo la Revolución Rusa?",
+                options: ["1905", "1917", "1921", "1933"],
+                correctAnswer: "1917"
+            },
+            {
+                question: "¿Cuál es el componente principal del aire que respiramos?",
+                options: ["Dióxido de carbono", "Oxígeno", "Nitrógeno", "Hidrógeno"],
+                correctAnswer: "Oxígeno"
+            }
+        ];
+
+        $(document).ready(function() {
+            let mediaRecorder;
+            let recordedChunks = [];
+            let recordedBlob;
+            let timer;
+            let submitted = false; // Variable para rastrear si ya se han enviado las respuestas
+
+            $('#startRecording').on('click', startRecording);
+            $('#submit').on('click', submitAnswers);
+            $('#saveLocally').on('click', saveLocally);
+
+            function buildQuiz() {
+                questions.forEach((question, index) => {
+                    const questionElement = document.createElement("div");
+                    questionElement.className = "list-group-item";
+                    questionElement.innerHTML = `<p class="mb-2">${index + 1}. ${question.question}</p>`;
+
+                    question.options.forEach((option, optionIndex) => {
+                        const input = document.createElement("input");
+                        input.type = "radio";
+                        input.name = `q${index}`;
+                        input.value = option;
+                        input.id = `q${index}o${optionIndex}`;
+                        input.className = "mr-2";
+                        const label = document.createElement("label");
+                        label.className = "form-check-label";
+                        label.textContent = option;
+                        label.setAttribute("for", `q${index}o${optionIndex}`);
+                        const optionContainer = document.createElement("div");
+                        optionContainer.className = "form-check";
+                        optionContainer.appendChild(input);
+                        optionContainer.appendChild(label);
+                        questionElement.appendChild(optionContainer);
+                    });
+
+                    $('#quiz-container').append(questionElement);
+                });
+            }
+
+            function startRecording() {
+                navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480 },
+                    audio: true
+                }).then(function (stream) {
+                    const cameraPreview = $('#cameraPreview')[0];
+                    cameraPreview.srcObject = stream;
+                    cameraPreview.play();
+
+                    mediaRecorder = new MediaRecorder(stream);
+
+                    mediaRecorder.ondataavailable = function(event) {
+                        if (event.data.size > 0) {
+                            recordedChunks.push(event.data);
+                        }
+                    };
+
+                    mediaRecorder.onstop = function() {
+                        recordedBlob = new Blob(recordedChunks, { type: 'video/webm' });
+                        const url = URL.createObjectURL(recordedBlob);
+                        const recordedVideo = $('#recordedVideo');
+
+                        recordedVideo.attr('src', url);
+                        recordedVideo.parent().css('display', 'block');
+
+                        const player = new Plyr(recordedVideo[0]);
+
+                        $('#saveLocally').css('display', 'block');
+                        $('#downloadLink').html('').css('display', 'block');
+
+                        const tracks = stream.getTracks();
+                        tracks.forEach(track => track.stop());
+                    };
+
+                    stream.getTracks().forEach(track => mediaRecorder.addTrack(track));
+
+                    stream.oninactive = function() {
+                        stopRecording();
+                    };
+
+                    mediaRecorder.start();
+                    $('#startRecording').prop('disabled', true);
+                    $('#stopRecording').prop('disabled', false);
+
+                    // Mostrar el contenedor de preguntas y ocultar otros elementos
+                    $('#questionsContainer').css('display', 'block');
+                    $('#videoContainer').css('display', 'none');
+                    $('#saveLocally').css('display', 'none');
+                    $('#downloadLink').css('display', 'none');
+
+                    // Construir el cuestionario
+                    buildQuiz();
+
+                    // Iniciar temporizador de 10 minutos
+                    startTimer(600);
+                })
+                .catch(function(error) {
+                    console.error('Error al iniciar la grabación:', error);
+                });
+            }
+
+
+            function stopRecording() {
+                mediaRecorder.stop();
+                $('#startRecording').prop('disabled', false);
+                $('#stopRecording').prop('disabled', true);
+
+                // Ocultar el contenedor de preguntas y mostrar el contenedor de video y botones relevantes
+                $('#questionsContainer').css('display', 'none');
+                $('#videoContainer').css('display', 'block');
+                $('#saveLocally').css('display', 'block');
+                $('#downloadLink').css('display', 'block');
+
+                // Deshabilitar preguntas después de que el temporizador llegue a cero
+                $('#submit').prop('disabled', true);
+
+                // Detener el temporizador si está activo
+                clearInterval(timer);
+
+                // Mostrar el puntaje debajo del video
+                const score = calculateScore();
+                $('#scoreContainer').text(`Tu puntuación: ${score} / ${questions.length}`);
+            }
+
+            function submitAnswers() {
+                // Calcula el puntaje y muestra el resultado
+                const score = calculateScore();
+                $('#result').text(`Tu puntuación: ${score} / ${questions.length}`);
+                
+                 // Ocultar los botones de "Comenzar Evaluación" y "Terminar Evaluación"
+    $('#startRecording, #stopRecording').css('display', 'none');
+                
+                // Muestra el puntaje debajo del video
+                $('#scoreContainer').text(`Tu puntuación: ${score} / ${questions.length}`);
+                
+                // Detener la grabación después de mostrar el resultado
+                stopRecording();
+                
+            }
+
+            function calculateScore() {
+                let score = 0;
+                questions.forEach((question, index) => {
+                    const selectedOption = document.querySelector(`input[name="q${index}"]:checked`);
+                    if (selectedOption && selectedOption.value === question.correctAnswer) {
+                        score++;
+                    }
+                });
+                return score;
+            }
+
+            function saveLocally() {
+                const blob = new Blob([recordedBlob], { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+
+                // Simular el clic en el enlace de descarga
+                const downloadLink = $('#downloadLink');
+                downloadLink.attr('href', url);
+                downloadLink[0].click();
+            }
+
+            function startTimer(duration) {
+                let startTimestamp = Math.floor(Date.now() / 1000);
+                let timerDuration = duration;
+
+                updateTimerDisplay();
+
+                timer = setInterval(function() {
+                    let now = Math.floor(Date.now() / 1000);
+                    let elapsedSeconds = now - startTimestamp;
+                    let remainingSeconds = timerDuration - elapsedSeconds;
+
+                    if (remainingSeconds <= 0) {
+                        stopRecording();
+                    } else {
+                        updateTimerDisplay(remainingSeconds);
+                    }
+                }, 1000);
+
+                function updateTimerDisplay(seconds) {
+                    let minutes = Math.floor(seconds / 60);
+                    let remainingSeconds = seconds % 60;
+
+                    $('#stopRecording').text(`Terminar Evaluacion (${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')})`);
+                }
+            }
+        });
+    </script>
+
+</body>
+</html>
